@@ -7,18 +7,25 @@
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "start": "node src/index.js",
+    "test:mcp": "node test-mcp.js",
     "swagger": "npx swagger-cli validate openapi.json"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3"]
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^12.10.0",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
     "playwright": "^1.60.0",
     "puppeteer-core": "^25.0.4",
     "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2"
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "only-allow": "^1.2.2"
