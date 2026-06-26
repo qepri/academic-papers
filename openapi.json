@@ -1,0 +1,210 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "academic-repos API",
+    "description": "Express + SQLite server that fetches articles from open-access academic APIs (OpenAlex, Unpaywall, PMC, Europe PMC, CORE) and serves them for querying.",
+    "version": "0.1.0"
+  },
+  "servers": [
+    { "url": "http://localhost:3000", "description": "Local dev" }
+  ],
+  "paths": {
+    "/api/search": {
+      "post": {
+        "summary": "Search articles across all providers",
+        "description": "Fetches articles from all 5 adapters in parallel (Promise.allSettled), deduplicates by DOI, stores in SQLite, returns results.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["query"],
+                "properties": {
+                  "query": { "type": "string", "example": "meditation pregnancy" },
+                  "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Article" }
+                    },
+                    "total": { "type": "integer" },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "source": { "type": "string" },
+                          "status": { "type": "string", "enum": ["fulfilled", "rejected"] },
+                          "count": { "type": "integer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Missing query" }
+        }
+      }
+    },
+    "/api/articles": {
+      "get": {
+        "summary": "List articles with filters",
+        "parameters": [
+          { "name": "topic", "in": "query", "schema": { "type": "string" }, "description": "Filter by topic (JSON contains)" },
+          { "name": "source", "in": "query", "schema": { "type": "string" }, "description": "Filter by journal/source name" },
+          { "name": "year", "in": "query", "schema": { "type": "integer" }, "description": "Filter by publication year" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated article list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": { "type": "array", "items": { "$ref": "#/components/schemas/Article" } },
+                    "total": { "type": "integer" },
+                    "limit": { "type": "integer" },
+                    "offset": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/articles/{id}": {
+      "get": {
+        "summary": "Get article by ID or DOI",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Article ID or DOI" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Article object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "article": { "$ref": "#/components/schemas/Article" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "Not found" }
+        }
+      },
+      "delete": {
+        "summary": "Delete article by ID or DOI",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted confirmation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/api/articles/{id}/pdf": {
+      "get": {
+        "summary": "Get PDF for article",
+        "description": "Returns the PDF file. Downloads and caches on first request.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Article ID or DOI" }
+        ],
+        "responses": {
+          "200": {
+            "description": "PDF file",
+            "content": { "application/pdf": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "404": { "description": "Article not found or no PDF available" },
+          "502": { "description": "Failed to fetch PDF from upstream" }
+        }
+      }
+    },
+    "/api/stats": {
+      "get": {
+        "summary": "Get database statistics",
+        "responses": {
+          "200": {
+            "description": "Stats object",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total_articles": { "type": "integer" },
+                    "by_source": {
+                      "type": "object",
+                      "additionalProperties": { "type": "integer" },
+                      "example": { "openalex": 492, "pmc": 416, "europepmc": 449 }
+                    },
+                    "recent_searches": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Article": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "nullable": true, "description": "External ID (OpenAlex ID, PMID, etc.)" },
+          "title": { "type": "string", "nullable": true },
+          "authors": { "type": "string", "nullable": true, "description": "JSON array of { name, orcid }" },
+          "source": { "type": "string", "nullable": true, "description": "Journal or repository name" },
+          "year": { "type": "integer", "nullable": true },
+          "doi": { "type": "string", "nullable": true },
+          "pmid": { "type": "string", "nullable": true },
+          "pmcid": { "type": "string", "nullable": true },
+          "url": { "type": "string", "nullable": true },
+          "pdf_url": { "type": "string", "nullable": true },
+          "abstract": { "type": "string", "nullable": true },
+          "topics": { "type": "string", "nullable": true, "description": "JSON array of topic strings" },
+          "source_api": { "type": "string", "enum": ["openalex", "unpaywall", "pmc", "europepmc", "core"] },
+          "fetched_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

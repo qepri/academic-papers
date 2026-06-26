@@ -1,0 +1,26 @@
+{
+  "name": "academic-repos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Express + SQLite server for open-access academic article aggregation",
+  "packageManager": "pnpm@10.8.0",
+  "scripts": {
+    "preinstall": "npx only-allow pnpm",
+    "start": "node src/index.js",
+    "swagger": "npx swagger-cli validate openapi.json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.10.0",
+    "express": "^5.2.1",
+    "playwright": "^1.60.0",
+    "puppeteer-core": "^25.0.4",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "devDependencies": {
+    "only-allow": "^1.2.2"
+  }
+}
